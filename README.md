@@ -1,12 +1,12 @@
 # Active Directory Home Lab
 
 ## Project Overview
-This project documents my process of building a beginner Windows Active Directory home lab. I am using the lab to develop practical IT support, Windows administration, networking, and troubleshooting skills.
+This project documents my process of building a beginner Windows Active Directory lab. I am using the lab to develop practical IT support, Windows administration, networking, identity management, Group Policy, and troubleshooting skills.
 
 This is a learning project, so I will update this repository as I build the environment, encounter problems, and learn new concepts.
 
 ## Goals
-- Build a virtual Windows domain environment
+- Build a Windows domain environment
 - Learn the purpose of a domain controller
 - Install and configure Active Directory Domain Services
 - Create and manage users, groups, and organizational units
@@ -21,10 +21,12 @@ This is a learning project, so I will update this repository as I build the envi
 - Apple Silicon Mac host
 - VMware Fusion
 - Windows 11 Pro ARM client
+- Microsoft Azure Windows Server environment
+- Windows Server 2025
+- Active Directory Domain Services (AD DS)
+- DNS
+- Group Policy Management
 - PowerShell
-- Active Directory Domain Services (planned)
-- DNS (planned)
-- Group Policy (planned)
 - GitHub for documentation
 
 ## Lab Progress
@@ -37,22 +39,25 @@ This is a learning project, so I will update this repository as I build the envi
 - [x] Create local LabAdmin account
 - [x] Verify network configuration with `ipconfig`
 - [x] Rename Windows client to `LAB-W11-CL01`
-- [ ] Create domain controller environment
-- [ ] Configure domain lab networking
+- [x] Create Windows Server domain controller environment in Microsoft Azure
+- [ ] Configure connectivity between the Windows 11 client and domain controller
 
 ### Phase 2 - Active Directory Setup
-- [ ] Configure the domain controller
-- [ ] Install Active Directory Domain Services
-- [ ] Promote the server to a domain controller
-- [ ] Create a test domain
-- [ ] Create organizational units
-- [ ] Create test users and groups
+- [x] Configure server `LAB-DC01`
+- [x] Install Active Directory Domain Services
+- [x] Promote the server to a domain controller
+- [x] Create the `corp.lab` forest/domain
+- [x] Install/configure DNS with the domain controller promotion
+- [x] Create organizational units
+- [x] Create test users and security groups
 - [ ] Join `LAB-W11-CL01` to the domain
 
 ### Phase 3 - Administration
-- [ ] Reset user passwords
-- [ ] Practice locked-account troubleshooting
-- [ ] Configure Group Policy
+- [x] Reset a user password
+- [x] Review account lockout controls
+- [x] Create and configure a Group Policy Object
+- [x] Link a GPO to a department OU
+- [ ] Verify Group Policy from a domain-joined client
 - [ ] Create shared folders
 - [ ] Configure file and folder permissions
 
@@ -84,6 +89,31 @@ Network information observed during setup:
 - Subnet mask: `255.255.255.0` (`/24`)
 - Default gateway: `172.16.222.2`
 - Initial DNS suffix: `localdomain`
+
+### Session 2 - Domain Controller and Active Directory Administration
+Built the server-side Active Directory environment and practiced common identity-management tasks.
+
+Completed:
+- Configured Windows Server 2025 server `LAB-DC01`
+- Installed the Active Directory Domain Services role
+- Promoted `LAB-DC01` as the first domain controller in a new forest
+- Created the domain `corp.lab` with NetBIOS name `CORP`
+- Verified the domain in Active Directory Users and Computers
+- Created top-level OUs `CORP-Users` and `CORP-Computers`
+- Created department OUs for IT, HR, Finance, and Sales
+- Created test users in department OUs
+- Practiced resetting a domain user's password and requiring a password change at next logon
+- Created the `IT-Staff` security group and added an IT user to it
+- Opened Group Policy Management and created `HR - Screen Lock Policy`
+- Linked the GPO to the HR OU
+- Enabled the screen saver, password protection, and a 300-second screen saver timeout
+- Verified that the HR GPO link is enabled
+
+Example lab users created:
+- Jordan Davis - IT
+- Maya Johnson - HR
+- Alex Carter - Finance
+- Taylor Smith - Sales
 
 ## Troubleshooting Log
 
@@ -117,6 +147,14 @@ Network information observed during setup:
 ## Screenshots
 Screenshots of the environment and important configurations will be added as the project progresses. Sensitive information such as passwords, keys, or personal information will not be uploaded.
 
+Useful screenshots from Session 2 include:
+- `corp.lab` visible in Active Directory Users and Computers
+- Department OU structure under `CORP-Users`
+- Test users inside their department OUs
+- `IT-Staff` security group membership
+- `HR - Screen Lock Policy` settings
+- HR GPO link showing `Link Enabled: Yes`
+
 ## What I Learned
 - How a hypervisor is used to create a virtual workstation
 - Basic VM resource allocation for CPU, memory, storage, and networking
@@ -125,6 +163,12 @@ Screenshots of the environment and important configurations will be added as the
 - How NAT allows the VM to communicate outside its virtual network through the host
 - Why administrative PowerShell commands may require elevation
 - Why consistent workstation naming matters in an IT environment
+- The role of a domain controller in centralized identity management
+- How AD DS organizes users and computers through domains and OUs
+- The difference between an OU and a security group
+- How administrators reset domain passwords and manage account options
+- How Group Policy can apply security settings to users in a specific OU
+- Why DNS is an important part of Active Directory domain operations
 
 ## Current Status
-The Windows 11 client workstation `LAB-W11-CL01` is installed and operational. The next major step is creating the domain controller environment and preparing the client to communicate with the Active Directory domain.
+The `corp.lab` Active Directory domain is operational on `LAB-DC01`. The domain contains department OUs, test users, an IT security group, and an HR screen-lock Group Policy. The Windows 11 client `LAB-W11-CL01` is also operational. The next major step is establishing secure connectivity between the client and the domain controller, joining the client to `corp.lab`, signing in with a domain user, and verifying Group Policy application.
