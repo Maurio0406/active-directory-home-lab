@@ -62,16 +62,17 @@ This is a learning project, so I will update this repository as I build the envi
 - [x] Create and configure a Group Policy Object
 - [x] Link a GPO to a department OU
 - [x] Verify the domain-joined client has a healthy secure channel to `corp.lab`
-- [ ] Sign in interactively as HR user `mjohnson` and verify the HR Group Policy with `gpresult`
-- [ ] Create shared folders
-- [ ] Configure file and folder permissions
+- [x] Sign in interactively as HR user `mjohnson` and verify the HR Group Policy with `gpresult`
+- [x] Create the HR departmental shared folder
+- [x] Configure SMB share permissions and NTFS permissions
+- [x] Test authorized HR access and denied Sales access
 
 ### Phase 4 - Troubleshooting
-- [ ] Create a controlled problem in the lab
-- [ ] Diagnose the problem
-- [ ] Document the cause
-- [ ] Document the solution
-- [ ] Record what I learned
+- [x] Create a controlled permissions problem in the lab
+- [x] Diagnose the problem
+- [x] Document the cause
+- [x] Document the solution
+- [x] Record what I learned
 
 ## Session Log
 
@@ -144,8 +145,48 @@ Completed:
 Architecture note:
 The original VMware client `LAB-W11-CL01` remains on the local VMware NAT network and is not yet joined to the domain. `LAB-W11-CL02` was intentionally created inside Azure on the same private VNet as `LAB-DC01` to complete the domain-join and Group Policy portions of the lab without opening AD, DNS, LDAP, Kerberos, SMB, or RDP ports to the internet.
 
-Paused here:
-The next step is to sign in to `LAB-W11-CL02` as `mjohnson@corp.lab`, confirm the session with `whoami`, run `gpupdate /force`, and verify `HR - Screen Lock Policy` with `gpresult`. Work paused due to network/connectivity issues in the current session.
+Session 3 ended before the interactive HR user and Group Policy verification. Those tasks were completed in Session 4.
+
+
+### Session 4 - Group Policy Verification, SMB Sharing, and Permissions Troubleshooting
+Completed the HR Group Policy verification and built the first departmental file share.
+
+Completed:
+- Connected to `LAB-W11-CL02` through Azure Bastion as HR user Maya Johnson (`mjohnson`)
+- Added `CORP\mjohnson` to the local `Remote Desktop Users` group after isolating a Bastion/RDP sign-in problem
+- Verified Maya's identity with `whoami` as `corp\mjohnson`
+- Ran `gpupdate /force`
+- Used `gpresult /r` to confirm `HR - Screen Lock Policy` applied to Maya
+- Created `C:\Shares\HR` on `LAB-DC01`
+- Created the `HR-Staff` global security group and added Maya
+- Published the folder as the SMB share `\\LAB-DC01\HR`
+- Granted `HR-Staff` Change permission at the SMB share layer
+- Configured NTFS permissions so `HR-Staff` has Modify while SYSTEM and Administrators retain Full Control
+- Removed broad inherited access from Authenticated Users and BUILTIN Users
+- Verified Maya could read, modify, and create files in the HR share
+- Used Sales user Taylor Smith (`tsmith`) as a negative access test
+- Verified Taylor received Access Denied when attempting to access the HR share
+- Intentionally removed the `HR-Staff` NTFS permission to create a controlled outage
+- Troubleshot the outage by verifying Maya's identity, group membership, SMB share permission, and NTFS ACL
+- Identified the missing NTFS permission as the root cause
+- Restored `HR-Staff` Modify permission and confirmed Maya regained access
+
+Permission model tested:
+- SMB: `CORP\HR-Staff` = Change
+- NTFS: `CORP\HR-Staff` = Modify
+- NTFS: SYSTEM = Full Control
+- NTFS: Administrators = Full Control
+
+Key commands used:
+```powershell
+gpupdate /force
+gpresult /r
+whoami
+whoami /groups
+Get-SmbShareAccess -Name HR
+icacls "C:\Shares\HR"
+dir "\\LAB-DC01\HR"
+```
 
 ## Troubleshooting Log
 
@@ -191,6 +232,47 @@ The next step is to sign in to `LAB-W11-CL02` as `mjohnson@corp.lab`, confirm th
 
 **What I learned:** A remote domain-login failure does not automatically mean the domain join or network is broken. Testing the secure channel and then testing the user account separately can isolate computer-trust problems from account/password problems.
 
+
+### Issue 5 - Domain user authenticated but Azure Bastion session failed
+**Problem:** Maya's domain credentials worked with `runas`, but Azure Bastion did not establish an interactive RDP session.
+
+**Troubleshooting:** Verified the domain account separately, checked active RDP sessions with `qwinsta`, and inspected the local `Remote Desktop Users` group.
+
+**Root cause:** The domain user did not have the required local Remote Desktop Users membership for this lab's remote-access configuration.
+
+**Solution:** Added `CORP\mjohnson` to the local `Remote Desktop Users` group on `LAB-W11-CL02`.
+
+**Result:** Maya successfully connected through Bastion and received a full interactive domain session.
+
+**What I learned:** Successful domain authentication and permission to create an interactive remote desktop session are separate checks.
+
+### Issue 6 - Password-change requirement blocked Bastion sign-in
+**Problem:** Taylor Smith (`tsmith`) received a Bastion connection error even after being prepared for remote access.
+
+**Root cause:** Taylor's account required a password change at next sign-in, the same condition previously encountered with Maya.
+
+**Solution:** Reset Taylor's lab password and removed the required-password-change condition for the test.
+
+**Result:** Taylor successfully signed in through Bastion as `tsmith@corp.lab`.
+
+**What I learned:** Account state can cause a remote sign-in to fail even when domain connectivity and RDP configuration are working.
+
+### Issue 7 - HR user suddenly lost access to departmental share
+**Problem:** Maya previously had working access to `\\LAB-DC01\HR` and then received Access Denied.
+
+**Troubleshooting:** Verified `corp\mjohnson` with `whoami`, confirmed `CORP\HR-Staff` in `whoami /groups`, confirmed the SMB share still granted HR-Staff Change access, then inspected the folder ACL with `icacls`.
+
+**Root cause:** The `CORP\HR-Staff` NTFS Modify permission had been intentionally removed.
+
+**Solution:** Restored the NTFS permission:
+```powershell
+icacls "C:\Shares\HR" /grant "CORP\HR-Staff:(OI)(CI)M"
+```
+
+**Result:** Maya immediately regained access to the HR share.
+
+**What I learned:** Windows network-file access depends on both SMB share permissions and NTFS permissions. Checking identity, group membership, share permissions, and NTFS ACLs in order helps isolate the failing layer.
+
 ## Screenshots
 Screenshots of the environment and important configurations will be added as the project progresses. Sensitive information such as passwords, keys, or personal information will not be uploaded.
 
@@ -220,8 +302,15 @@ Useful screenshots from Session 2 include:
 - How to verify a Windows computer's domain trust with `Test-ComputerSecureChannel`
 - How to distinguish a domain connectivity problem from a user-account authentication problem
 - Why keeping AD traffic on a private Azure VNet is safer than exposing domain-service ports to the internet
+- How to verify user-applied Group Policy with `gpupdate` and `gpresult`
+- How SMB share permissions and NTFS permissions work together
+- Why AD security groups are preferable to assigning departmental permissions directly to individual users
+- How to validate authorized access with an HR user and denied access with a non-HR user
+- How to troubleshoot an Access Denied problem by checking identity, group membership, SMB permissions, and NTFS ACLs
 
 ## Current Status
-The `corp.lab` Active Directory domain is operational on `LAB-DC01` (`10.10.1.4`). Azure Windows 11 client `LAB-W11-CL02` (`10.10.1.5`) uses the domain controller for DNS and has successfully joined `corp.lab`. DNS SRV discovery and the computer secure channel have been verified. The HR test account `mjohnson` also successfully authenticated after troubleshooting a required-password-change condition.
+The `corp.lab` Active Directory domain is operational on `LAB-DC01` (`10.10.1.4`). Azure Windows 11 client `LAB-W11-CL02` (`10.10.1.5`) is joined to the domain and uses the domain controller for DNS. Maya Johnson successfully signed in with a full domain session, and `gpresult /r` confirmed that `HR - Screen Lock Policy` applies to her HR account.
 
-Work is paused due to network issues. The next step is to sign in interactively to `LAB-W11-CL02` as `mjohnson@corp.lab`, confirm `corp\\mjohnson` with `whoami`, run `gpupdate /force`, and verify that `HR - Screen Lock Policy` appears in `gpresult`. After Group Policy verification, the next planned administration tasks are shared folders and NTFS/share permissions. The original local VMware client `LAB-W11-CL01` remains available as a future networking extension.
+The first departmental file share is also operational. `\\LAB-DC01\HR` uses the `HR-Staff` AD security group, SMB Change permission, and NTFS Modify permission. Maya successfully read, modified, and created files, while Sales user Taylor Smith received Access Denied. A controlled NTFS permissions failure was created, diagnosed, repaired, and retested successfully.
+
+Next session: build the IT, Finance, and Sales departmental shares, assign group-based permissions, test cross-department access, and then configure automatic network-drive mapping through Group Policy. The original VMware client `LAB-W11-CL01` remains a future networking extension.
